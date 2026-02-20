@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { Sparkles, ArrowRight } from "lucide-react";
+import Link from "next/link";
 
 export const Hero = () => {
   return (
@@ -15,20 +16,20 @@ export const Hero = () => {
           <Sparkles className="w-4 h-4 text-blue-400" />
           <span>Gemini Wrapper Service</span>
         </div>
-        
+
         <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-white animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-200">
           Intelligence, <span className="text-blue-400">Simplified.</span>
         </h1>
-        
+
         <p className="text-lg md:text-xl text-zinc-400 max-w-2xl animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
-          Unlock the full potential of Gemini&apos;s advanced AI with our minimal wrapper. 
+          Unlock the full potential of Gemini&apos;s advanced AI with our minimal wrapper.
           Fast, secure, and built for your productivity.
         </p>
-        
+
         <div className="flex flex-col sm:flex-row gap-4 mt-4 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-500">
-          <button className="h-12 px-8 rounded-full bg-white text-black font-medium flex items-center gap-2 hover:opacity-90 transition-opacity">
+          <Link href="/login" className="h-12 px-8 rounded-full bg-white text-black font-medium flex items-center gap-2 hover:opacity-90 transition-opacity">
             Get Started <ArrowRight className="w-4 h-4" />
-          </button>
+          </Link>
           <button className="h-12 px-8 rounded-full border border-white/10 hover:bg-white/5 font-medium transition-colors text-white">
             Learn More
           </button>
