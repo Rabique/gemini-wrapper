@@ -4,9 +4,11 @@ import { Sidebar } from '@/components/dashboard/Sidebar'
 import { Navbar } from '@/components/dashboard/Navbar'
 import { ChatArea } from '@/components/dashboard/ChatArea'
 import { useAuth } from '@/components/providers/AuthProvider'
+import { useState } from 'react'
 
 export default function DashboardPage() {
     const { loading } = useAuth()
+    const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
 
     if (loading) {
         return (
@@ -19,7 +21,11 @@ export default function DashboardPage() {
     return (
         <div className="flex h-screen bg-zinc-950 text-zinc-200 overflow-hidden font-sans selection:bg-red-600/30">
             {/* Left Sidebar */}
-            <Sidebar />
+            <Sidebar
+                activeConversationId={activeConversationId || undefined}
+                onSelectConversation={(id) => setActiveConversationId(id)}
+                onNewChat={() => setActiveConversationId(null)}
+            />
 
             {/* Main Container */}
             <div className="flex-1 flex flex-col min-w-0">
@@ -27,7 +33,10 @@ export default function DashboardPage() {
 
                 {/* Chat / Content Area */}
                 <main className="flex-1 overflow-hidden">
-                    <ChatArea />
+                    <ChatArea
+                        conversationId={activeConversationId}
+                        onConversationCreated={(id) => setActiveConversationId(id)}
+                    />
                 </main>
             </div>
         </div>

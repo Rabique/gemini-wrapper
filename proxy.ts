@@ -14,6 +14,6 @@ export const config = {
          * - favicon.ico (favicon file)
          * Feel free to modify this matcher to fit your needs.
          */
-        '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+        '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
     ],
 }

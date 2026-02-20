@@ -1,22 +1,112 @@
-'use client'
-
+import { createClient } from '@/lib/supabase/client'
 import { Send, Sparkles, Paperclip, Mic } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
-export const ChatArea = () => {
+interface ChatAreaProps {
+    conversationId: string | null
+    onConversationCreated: (id: string) => void
+}
+
+export const ChatArea = ({ conversationId, onConversationCreated }: ChatAreaProps) => {
     const [input, setInput] = useState('')
+    const [messages, setMessages] = useState<any[]>([])
+    const [isLoading, setIsLoading] = useState(false)
+    const supabase = createClient()
 
-    const mockMessages = [
-        { role: 'assistant', content: 'Hello! I am your AI video assistant. How can I help you with your YouTube channel today?' },
-        { role: 'user', content: 'Can you help me brainstorm some titles for a video about AI coding assistants?' },
-        { role: 'assistant', content: 'Certainly! Here are some compelling titles for your AI coding assistant video:\n\n1. "The Future of Coding: AI is Changing Everything"\n2. "I Built an Entire App with Just AI (Honest Review)"\n3. "AI vs Developer: Who Codes Better in 2026?"\n4. "Top 5 AI Tools That Will Save You 10+ Hours a Week"\n\nWhich of these styles do you prefer?' },
-    ]
+    useEffect(() => {
+        if (conversationId) {
+            fetchMessages(conversationId)
+        } else {
+            setMessages([{ role: 'assistant', content: 'Hello! I am your AI video assistant. How can I help you with your YouTube channel today?' }])
+        }
+    }, [conversationId])
+
+    const fetchMessages = async (id: string) => {
+        setIsLoading(true)
+        const { data, error } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('conversation_id', id)
+            .order('created_at', { ascending: true })
+
+        if (!error && data) {
+            setMessages(data)
+        }
+        setIsLoading(false)
+    }
+
+    const handleSendMessage = async () => {
+        if (!input.trim() || isLoading) return
+
+        const userMessage = { role: 'user', content: input }
+        const currentMessages = [...messages, userMessage]
+        setMessages(currentMessages)
+        setInput('')
+        setIsLoading(true)
+
+        const assistantMessageIdx = currentMessages.length
+        setMessages(prev => [...prev, { role: 'assistant', content: '' }])
+
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    messages: currentMessages,
+                    conversationId: conversationId
+                }),
+            })
+
+            if (!response.ok) throw new Error('Failed to fetch response')
+
+            // If we didn't have a conversationId, the backend created one
+            const newConvId = response.headers.get('x-conversation-id')
+            if (newConvId && !conversationId) {
+                onConversationCreated(newConvId)
+            }
+
+            const reader = response.body?.getReader()
+            const decoder = new TextDecoder()
+            let assistantContent = ''
+
+            if (reader) {
+                while (true) {
+                    const { done, value } = await reader.read()
+                    if (done) break
+
+                    const chunk = decoder.decode(value, { stream: true })
+                    assistantContent += chunk
+
+                    setMessages(prev => {
+                        const updated = [...prev]
+                        updated[assistantMessageIdx] = {
+                            role: 'assistant',
+                            content: assistantContent
+                        }
+                        return updated
+                    })
+                }
+            }
+        } catch (error) {
+            console.error('Chat error:', error)
+            setMessages(prev => {
+                const updated = [...prev]
+                updated[assistantMessageIdx] = {
+                    role: 'assistant',
+                    content: 'Sorry, I encountered an error processing your request.'
+                }
+                return updated
+            })
+        } finally {
+            setIsLoading(false)
+        }
+    }
 
     return (
         <div className="flex-1 flex flex-col h-full relative">
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-6 space-y-8 max-w-4xl mx-auto w-full">
-                {mockMessages.map((msg, i) => (
+                {messages.map((msg, i) => (
                     <div key={i} className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                         <div className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center font-bold ${msg.role === 'assistant' ? 'bg-red-600 text-white' : 'bg-zinc-800 text-zinc-400'
                             }`}>
@@ -28,6 +118,18 @@ export const ChatArea = () => {
                         </div>
                     </div>
                 ))}
+                {isLoading && messages[messages.length - 1]?.content === '' && (
+                    <div className="flex gap-4">
+                        <div className="w-8 h-8 rounded-lg bg-red-600 text-white flex items-center justify-center font-bold animate-pulse">A</div>
+                        <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4">
+                            <div className="flex gap-1">
+                                <span className="w-1.5 h-1.5 bg-zinc-500 rounded-full animate-bounce"></span>
+                                <span className="w-1.5 h-1.5 bg-zinc-500 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                                <span className="w-1.5 h-1.5 bg-zinc-500 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Input Area */}
@@ -37,6 +139,12 @@ export const ChatArea = () => {
                         <textarea
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault()
+                                    handleSendMessage()
+                                }
+                            }}
                             placeholder="Ask anything about your videos..."
                             className="w-full bg-transparent border-none focus:ring-0 text-zinc-200 p-4 min-h-[60px] max-h-[200px] resize-none text-sm"
                             rows={1}
@@ -53,9 +161,13 @@ export const ChatArea = () => {
                             <div className="flex items-center gap-2">
                                 <div className="hidden sm:flex items-center gap-1 px-3 py-1.5 bg-zinc-800 rounded-xl text-zinc-400 text-xs font-bold mr-2">
                                     <Sparkles size={12} className="text-amber-400" />
-                                    Premium Mode
+                                    Gemini 3.1 Pro
                                 </div>
-                                <button className="p-2.5 bg-red-600 hover:bg-red-500 text-white rounded-2xl transition-all shadow-[0_0_15px_rgba(220,38,38,0.3)] active:scale-95">
+                                <button
+                                    onClick={handleSendMessage}
+                                    disabled={isLoading || !input.trim()}
+                                    className="p-2.5 bg-red-600 hover:bg-red-500 text-white rounded-2xl transition-all shadow-[0_0_15px_rgba(220,38,38,0.3)] active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+                                >
                                     <Send size={18} />
                                 </button>
                             </div>
