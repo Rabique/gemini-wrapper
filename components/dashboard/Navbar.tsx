@@ -40,16 +40,14 @@ export const Navbar = () => {
             </div>
 
             <div className="flex items-center gap-4">
-                {/* Upgrade Button for Free Users */}
-                {currentPlan === 'free' && (
-                    <Link
-                        href="/pricing"
-                        className="flex items-center gap-2 px-4 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition-all shadow-lg shadow-red-600/20 group"
-                    >
-                        <ArrowUpCircle size={14} className="group-hover:rotate-12 transition-transform" />
-                        Upgrade
-                    </Link>
-                )}
+                {/* Upgrade Button - Always Visible */}
+                <Link
+                    href="/pricing"
+                    className="flex items-center gap-2 px-4 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition-all shadow-lg shadow-red-600/20 group"
+                >
+                    <ArrowUpCircle size={14} className="group-hover:rotate-12 transition-transform" />
+                    Upgrade
+                </Link>
 
                 {/* Credits display */}
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-full">

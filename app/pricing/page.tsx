@@ -152,18 +152,14 @@ export default function PricingPage() {
                             </div>
 
                             <button
-                                onClick={() => plan.id === currentPlan ? {} : handleUpgrade(plan.id)}
-                                disabled={!!loadingId || plan.id === currentPlan}
-                                className={`w-full py-3 rounded-xl font-semibold transition-all ${plan.id === currentPlan
-                                    ? 'bg-zinc-800 text-zinc-400 cursor-default'
-                                    : plan.popular
+                                onClick={() => handleUpgrade(plan.id)}
+                                disabled={!!loadingId}
+                                className={`w-full py-3 rounded-xl font-semibold transition-all ${plan.popular
                                         ? 'bg-red-600 hover:bg-red-500 text-white shadow-lg hover:shadow-red-600/20'
                                         : 'bg-white hover:bg-zinc-200 text-black'
                                     } disabled:opacity-50 disabled:cursor-not-allowed`}
                             >
-                                {loadingId === plan.id ? 'Loading...' : (
-                                    plan.id === currentPlan ? 'Current Plan' : 'Upgrade'
-                                )}
+                                {loadingId === plan.id ? 'Loading...' : 'Upgrade'}
                             </button>
                         </div>
                     ))}
