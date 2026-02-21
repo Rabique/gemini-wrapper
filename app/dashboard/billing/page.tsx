@@ -137,7 +137,7 @@ export default function BillingPage() {
                                 disabled={portalLoading}
                                 className="flex-1 flex items-center justify-center gap-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-950 py-3 rounded-xl font-bold text-sm transition-all disabled:opacity-50"
                             >
-                                {portalLoading ? 'Loading...' : 'Manage Billing'}
+                                {portalLoading ? 'Loading...' : 'Polar Customer Portal'}
                                 <ExternalLink size={14} />
                             </button>
                             <Link 
@@ -155,20 +155,20 @@ export default function BillingPage() {
                         <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6">
                             <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
                                 <Settings size={16} className="text-zinc-500" />
-                                Billing Support
+                                Portal Features
                             </h3>
                             <div className="space-y-4">
                                 <div className="text-xs text-zinc-400">
-                                    <p className="font-bold text-zinc-300 mb-1">Invoices</p>
-                                    <p>You can view and download all your past invoices through the Polar Customer Portal.</p>
+                                    <p className="font-bold text-zinc-300 mb-1">Invoices & Receipts</p>
+                                    <p>View and download your past billing history through the Polar Customer Portal.</p>
                                 </div>
                                 <div className="text-xs text-zinc-400">
                                     <p className="font-bold text-zinc-300 mb-1">Payment Methods</p>
-                                    <p>Update your credit card or payment details securely at any time.</p>
+                                    <p>Securely update your credit card or billing details at any time.</p>
                                 </div>
                                 <div className="text-xs text-zinc-400">
-                                    <p className="font-bold text-zinc-300 mb-1">Cancellations</p>
-                                    <p>Subscriptions can be canceled at any time through the portal. You will retain access until the end of the billing period.</p>
+                                    <p className="font-bold text-zinc-300 mb-1">Subscriptions</p>
+                                    <p>Manage, upgrade, or cancel your active subscriptions with ease.</p>
                                 </div>
                             </div>
                         </div>

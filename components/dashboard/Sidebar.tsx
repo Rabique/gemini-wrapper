@@ -79,18 +79,6 @@ export const Sidebar = ({ onSelectConversation, activeConversationId, onNewChat 
                     <Plus size={18} />
                     New Conversation
                 </button>
-
-                <button
-                    onClick={() => router.push('/dashboard/billing')}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all border ${
-                        pathname === '/dashboard/billing' 
-                        ? 'bg-zinc-900 border-zinc-800 text-white shadow-xl shadow-white/5' 
-                        : 'bg-zinc-950 border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'
-                    }`}
-                >
-                    <CreditCard size={18} />
-                    <span className="text-sm font-semibold">Billing Settings</span>
-                </button>
             </div>
 
             {/* History Section */}
@@ -139,6 +127,17 @@ export const Sidebar = ({ onSelectConversation, activeConversationId, onNewChat 
 
             {/* Bottom section */}
             <div className="p-4 border-t border-zinc-900 space-y-2">
+                <button
+                    onClick={() => router.push('/dashboard/billing')}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all border ${pathname === '/dashboard/billing'
+                        ? 'bg-zinc-900 border-zinc-800 text-white shadow-xl shadow-white/5'
+                        : 'bg-zinc-950 border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'
+                        }`}
+                >
+                    <CreditCard size={18} />
+                    <span className="text-sm font-semibold">Billing Settings</span>
+                </button>
+
                 <button
                     onClick={() => signOut()}
                     className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-red-950/20 text-zinc-500 hover:text-red-400 transition-all border border-transparent hover:border-red-900/30"
