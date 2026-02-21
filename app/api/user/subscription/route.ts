@@ -8,6 +8,7 @@ export async function GET() {
         const { data: { user } } = await supabase.auth.getUser()
 
         if (!user || !user.email) {
+            console.log('User not authenticated or missing email, returning free plan')
             return NextResponse.json({ planId: 'free' })
         }
 
@@ -17,11 +18,11 @@ export async function GET() {
         })
 
         let planId = 'free'
+        let subscription: any = null
 
+        console.log('Fetching subscriptions for user email:', user.email)
+        
         // 1. Find Customer by Email
-        // Note: The SDK's list method returns an asynchronous iterator or a paginated response.
-        // We need to handle it correctly. Based on documentation, list returns a Result object which contains items.
-
         const customers = await polar.customers.list({
             email: user.email,
         })
@@ -31,6 +32,7 @@ export async function GET() {
         const customer = customerItems[0]
 
         if (customer) {
+            console.log('Found Polar customer:', customer.id)
             // 2. List Subscriptions for this Customer
             const subscriptions = await polar.subscriptions.list({
                 customerId: customer.id,
@@ -44,21 +46,37 @@ export async function GET() {
             const activeSub = subItems.find(sub => sub.status === 'active' || sub.status === 'trialing')
 
             if (activeSub) {
-                console.log('Active/Trialing subscription found:', activeSub.id, 'Status:', activeSub.status)
-                // The product ID is available directly in the subscription object
+                console.log('Active/Trialing subscription found:', activeSub.id, 'Status:', activeSub.status, 'Product ID:', activeSub.productId)
+                subscription = activeSub
                 const productId = activeSub.productId
 
                 if (productId === process.env.POLAR_PRODUCT_ID_PRO) planId = 'pro'
                 if (productId === process.env.POLAR_PRODUCT_ID_UNLIMITED) planId = 'unlimited'
             } else {
-                console.log('No active or trialing subscriptions found.')
+                console.log('No active or trialing subscriptions found for customer.')
             }
+        } else {
+            console.log('No Polar customer found for email:', user.email)
         }
 
-        return NextResponse.json({ planId })
+        return NextResponse.json({ 
+            planId,
+            subscription: subscription ? {
+                id: subscription.id,
+                status: subscription.status,
+                currentPeriodEnd: subscription.currentPeriodEnd,
+                amount: subscription.amount,
+                currency: subscription.currency,
+                cancelAtPeriodEnd: subscription.cancelAtPeriodEnd
+            } : null
+        })
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error fetching subscription:', error)
+        // If it's a Polar SDK error, it might have more details
+        if (error.body) {
+            console.error('Polar Error Details:', error.body)
+        }
         // Return free plan on error to avoid blocking the UI
         return NextResponse.json({ planId: 'free' })
     }

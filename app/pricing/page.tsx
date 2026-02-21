@@ -39,6 +39,7 @@ export default function PricingPage() {
     const { user } = useAuth()
     const [loadingId, setLoadingId] = useState<string | null>(null)
     const [currentPlan, setCurrentPlan] = useState<string>('free')
+    const [error, setError] = useState<string | null>(null)
     const router = useRouter()
 
     useEffect(() => {
@@ -51,11 +52,9 @@ export default function PricingPage() {
                     setCurrentPlan(data.planId)
                 } else if (!response.ok) {
                     console.error('Subscription API Error:', data.error)
-                    // alert(`Subscription API Error: ${data.error}`)
                 }
             } catch (error: any) {
                 console.error('Failed to fetch subscription:', error)
-                // alert(`Network Error: ${error.message}`)
             }
         }
 
@@ -69,7 +68,10 @@ export default function PricingPage() {
         }
 
         setLoadingId(planId)
+        setError(null) // 기존 에러 초기화
+        
         try {
+            console.log('Sending checkout request for plan:', planId)
             const response = await fetch('/api/checkout', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -79,17 +81,22 @@ export default function PricingPage() {
             const data = await response.json()
 
             if (!response.ok) {
-                throw new Error(data.error || 'Checkout failed')
+                // 구체적인 에러 내용을 설정
+                const errorMsg = data.details || data.error || 'Checkout failed'
+                throw new Error(errorMsg)
             }
 
             if (data.url) {
+                console.log('Redirecting to checkout:', data.url)
                 window.location.href = data.url
             } else {
-                throw new Error('No checkout URL returned')
+                throw new Error('No checkout URL returned from server')
             }
         } catch (error: any) {
             console.error('Checkout error:', error)
-            alert(`Checkout Error: ${error.message}`)
+            setError(error.message)
+            // 브라우저 얼럿으로도 에러 내용을 바로 표시
+            alert(`Error: ${error.message}`)
         } finally {
             setLoadingId(null)
         }
@@ -105,6 +112,14 @@ export default function PricingPage() {
                     <p className="text-zinc-400 text-lg max-w-2xl mx-auto">
                         Choose the plan that best fits your creative needs. Upgrade or downgrade at any time.
                     </p>
+                    
+                    {/* 에러 메시지 영역 */}
+                    {error && (
+                        <div className="mt-8 max-w-lg mx-auto p-4 bg-red-900/20 border border-red-500/30 rounded-2xl text-red-400 text-sm flex items-center gap-3">
+                            <span className="font-bold text-lg">!</span>
+                            <p className="text-left font-medium">{error}</p>
+                        </div>
+                    )}
                 </div>
 
                 <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
@@ -153,13 +168,16 @@ export default function PricingPage() {
 
                             <button
                                 onClick={() => handleUpgrade(plan.id)}
-                                disabled={!!loadingId}
-                                className={`w-full py-3 rounded-xl font-semibold transition-all ${plan.popular
-                                        ? 'bg-red-600 hover:bg-red-500 text-white shadow-lg hover:shadow-red-600/20'
-                                        : 'bg-white hover:bg-zinc-200 text-black'
+                                disabled={!!loadingId || currentPlan === plan.id}
+                                className={`w-full py-3 rounded-xl font-semibold transition-all ${
+                                    plan.id === currentPlan 
+                                        ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                                        : plan.popular
+                                            ? 'bg-red-600 hover:bg-red-500 text-white shadow-lg hover:shadow-red-600/20'
+                                            : 'bg-white hover:bg-zinc-200 text-black'
                                     } disabled:opacity-50 disabled:cursor-not-allowed`}
                             >
-                                {loadingId === plan.id ? 'Loading...' : 'Upgrade'}
+                                {loadingId === plan.id ? 'Loading...' : currentPlan === plan.id ? 'Current Plan' : 'Upgrade'}
                             </button>
                         </div>
                     ))}

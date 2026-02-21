@@ -1,5 +1,6 @@
-import { Plus, MessageSquare, Trash2, MoreVertical, LogOut } from 'lucide-react'
+import { Plus, MessageSquare, Trash2, MoreVertical, LogOut, CreditCard } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/components/providers/AuthProvider'
 
@@ -20,6 +21,8 @@ export const Sidebar = ({ onSelectConversation, activeConversationId, onNewChat 
     const [isLoading, setIsLoading] = useState(true)
     const supabase = createClient()
     const { signOut } = useAuth()
+    const router = useRouter()
+    const pathname = usePathname()
 
     useEffect(() => {
         fetchConversations()
@@ -68,13 +71,25 @@ export const Sidebar = ({ onSelectConversation, activeConversationId, onNewChat 
     return (
         <aside className="w-72 bg-zinc-950 border-r border-zinc-800 flex flex-col h-full overflow-hidden">
             {/* New Chat Button */}
-            <div className="p-4">
+            <div className="p-4 space-y-2">
                 <button
                     onClick={onNewChat}
                     className="w-full flex items-center justify-center gap-2 bg-zinc-100 hover:bg-zinc-200 text-black font-semibold py-3 px-4 rounded-xl transition-all active:scale-[0.98]"
                 >
                     <Plus size={18} />
                     New Conversation
+                </button>
+
+                <button
+                    onClick={() => router.push('/dashboard/billing')}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all border ${
+                        pathname === '/dashboard/billing' 
+                        ? 'bg-zinc-900 border-zinc-800 text-white shadow-xl shadow-white/5' 
+                        : 'bg-zinc-950 border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'
+                    }`}
+                >
+                    <CreditCard size={18} />
+                    <span className="text-sm font-semibold">Billing Settings</span>
                 </button>
             </div>
 
@@ -91,14 +106,19 @@ export const Sidebar = ({ onSelectConversation, activeConversationId, onNewChat 
                             conversations.map((item) => (
                                 <div
                                     key={item.id}
-                                    onClick={() => onSelectConversation(item.id)}
-                                    className={`group flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors relative ${activeConversationId === item.id ? 'bg-zinc-900 border border-zinc-800' : 'hover:bg-zinc-900'
+                                    onClick={() => {
+                                        if (pathname !== '/dashboard') {
+                                            router.push('/dashboard')
+                                        }
+                                        onSelectConversation(item.id)
+                                    }}
+                                    className={`group flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors relative ${activeConversationId === item.id && pathname === '/dashboard' ? 'bg-zinc-900 border border-zinc-800' : 'hover:bg-zinc-900'
                                         }`}
                                 >
-                                    <MessageSquare size={16} className={`${activeConversationId === item.id ? 'text-white' : 'text-zinc-500 group-hover:text-zinc-300'
+                                    <MessageSquare size={16} className={`${activeConversationId === item.id && pathname === '/dashboard' ? 'text-white' : 'text-zinc-500 group-hover:text-zinc-300'
                                         }`} />
                                     <div className="flex-1 overflow-hidden">
-                                        <p className={`text-sm truncate font-medium ${activeConversationId === item.id ? 'text-white' : 'text-zinc-300'
+                                        <p className={`text-sm truncate font-medium ${activeConversationId === item.id && pathname === '/dashboard' ? 'text-white' : 'text-zinc-300'
                                             }`}>{item.title}</p>
                                         <p className="text-[10px] text-zinc-600 uppercase font-bold">{formatDate(item.created_at)}</p>
                                     </div>
@@ -128,7 +148,7 @@ export const Sidebar = ({ onSelectConversation, activeConversationId, onNewChat 
                 </button>
 
                 <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-zinc-900/50 border border-zinc-800/50">
-                    <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center text-xs font-bold">P</div>
+                    <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center text-xs font-bold text-white shadow-lg shadow-red-600/20">P</div>
                     <div className="flex-1 overflow-hidden">
                         <p className="text-xs font-semibold text-zinc-300">Polarutube Pro</p>
                         <p className="text-[10px] text-zinc-500">Upgrade for more</p>
