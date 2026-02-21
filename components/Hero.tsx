@@ -28,7 +28,7 @@ export const Hero = () => {
 
         <div className="flex flex-col sm:flex-row gap-4 mt-4 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-500">
           <Link href="/login" className="h-12 px-8 rounded-full bg-white text-black font-medium flex items-center gap-2 hover:opacity-90 transition-opacity">
-            Get Started <ArrowRight className="w-4 h-4" />
+            *Get Started <ArrowRight className="w-4 h-4" />
           </Link>
           <button className="h-12 px-8 rounded-full border border-white/10 hover:bg-white/5 font-medium transition-colors text-white">
             Learn More
