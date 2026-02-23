@@ -28,9 +28,12 @@ export async function POST() {
             server: process.env.POLAR_SANDBOX === 'true' ? 'sandbox' : 'production',
         })
 
-        // 3. Cancel via Polar
-        await polar.subscriptions.delete({
+        // 3. Cancel via Polar (at the end of the period)
+        await polar.subscriptions.update({
             id: sub.polar_subscription_id,
+            subscriptionUpdate: {
+                cancelAtPeriodEnd: true,
+            },
         })
 
         // Webhook (subscription.canceled) will handle updating the DB status to 'canceled'
