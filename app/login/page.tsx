@@ -51,7 +51,7 @@ export default function LoginPage() {
 
         try {
             if (isSignUp) {
-                const { error } = await supabase.auth.signUp({
+                const { data, error } = await supabase.auth.signUp({
                     email,
                     password,
                     options: {
@@ -59,7 +59,12 @@ export default function LoginPage() {
                     },
                 })
                 if (error) throw error
-                setSuccess('Check your email for the confirmation link!')
+                
+                if (data.session) {
+                    router.push('/dashboard')
+                } else {
+                    setSuccess('Check your email for the confirmation link!')
+                }
             } else {
                 const { error } = await supabase.auth.signInWithPassword({
                     email,
