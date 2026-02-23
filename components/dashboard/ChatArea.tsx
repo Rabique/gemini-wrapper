@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/client'
-import { Send, Sparkles, Paperclip, Mic } from 'lucide-react'
+import { Send, Sparkles, Paperclip, Mic, ArrowRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 
 interface ChatAreaProps {
     conversationId: string | null
@@ -57,6 +58,21 @@ export const ChatArea = ({ conversationId, onConversationCreated }: ChatAreaProp
                 }),
             })
 
+            if (response.status === 429) {
+                const data = await response.json()
+                setMessages(prev => {
+                    const updated = [...prev]
+                    updated[assistantMessageIdx] = {
+                        role: 'assistant',
+                        content: `You've reached your monthly limit of ${data.limit} calls. Please upgrade your plan to continue using Polarutube.`,
+                        isLimitError: true
+                    }
+                    return updated
+                })
+                setIsLoading(false)
+                return
+            }
+
             if (!response.ok) throw new Error('Failed to fetch response')
 
             // If we didn't have a conversationId, the backend created one
@@ -112,9 +128,18 @@ export const ChatArea = ({ conversationId, onConversationCreated }: ChatAreaProp
                             }`}>
                             {msg.role === 'assistant' ? 'A' : 'U'}
                         </div>
-                        <div className={`max-w-[80%] rounded-2xl p-4 ${msg.role === 'assistant' ? 'bg-zinc-900/50 border border-zinc-800 text-zinc-200' : 'bg-white text-black font-medium'
+                        <div className={`max-w-[80%] rounded-2xl p-4 flex flex-col gap-4 ${msg.role === 'assistant' ? 'bg-zinc-900/50 border border-zinc-800 text-zinc-200' : 'bg-white text-black font-medium'
                             }`}>
                             <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                            
+                            {msg.isLimitError && (
+                                <Link 
+                                    href="/pricing"
+                                    className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold py-2 px-4 rounded-xl transition-all w-fit shadow-lg shadow-red-600/20"
+                                >
+                                    Upgrade Plan Now <ArrowRight size={14} />
+                                </Link>
+                            )}
                         </div>
                     </div>
                 ))}
