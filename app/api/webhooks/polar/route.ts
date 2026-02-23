@@ -17,6 +17,7 @@ export async function POST(req: Request) {
             throw new Error('POLAR_WEBHOOK_SECRET is not configured')
         }
 
+        const headers = Object.fromEntries(req.headers.entries())
         const event = await validateEvent(body, headers, webhookSecret)
         const supabase = await createClient()
 
