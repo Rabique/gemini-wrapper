@@ -14,6 +14,40 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
+        // --- Usage Tracking Start ---
+        const { data: subscription } = await supabase
+            .from('subscriptions')
+            .select('plan, status')
+            .eq('user_id', user.id)
+            .single()
+
+        const plan = subscription?.plan || 'free'
+        const limits: Record<string, number> = { free: 10, pro: 100, unlimited: Infinity }
+        const currentMonth = new Date().toISOString().slice(0, 7) // 2025-02 형식
+
+        let usageCount = 0
+        if (plan !== 'unlimited') {
+            const { data: usage } = await supabase
+                .from('usage')
+                .select('count')
+                .eq('user_id', user.id)
+                .eq('month', currentMonth)
+                .single()
+            
+            usageCount = usage?.count || 0
+
+            if (usageCount >= limits[plan]) {
+                const upgradeUrl = `${new URL(req.url).origin}/pricing`
+                return NextResponse.json({ 
+                    error: 'Usage limit reached', 
+                    upgradeUrl,
+                    limit: limits[plan],
+                    count: usageCount
+                }, { status: 429 })
+            }
+        }
+        // --- Usage Tracking End ---
+
         if (!apiKey) {
             return NextResponse.json({ error: 'Google API Key is not configured' }, { status: 500 })
         }
@@ -83,6 +117,22 @@ export async function POST(req: Request) {
                         role: 'assistant',
                         content: fullAiResponse
                     })
+
+                    // Increment usage if not unlimited
+                    if (plan !== 'unlimited') {
+                        const { data: usage } = await supabase
+                            .from('usage')
+                            .select('count')
+                            .eq('user_id', user.id)
+                            .eq('month', currentMonth)
+                            .single()
+                        
+                        const nextCount = (usage?.count || 0) + 1
+
+                        await supabase
+                            .from('usage')
+                            .upsert({ user_id: user.id, month: currentMonth, count: nextCount }, { onConflict: 'user_id,month' })
+                    }
 
                     controller.close()
                 } catch (error) {

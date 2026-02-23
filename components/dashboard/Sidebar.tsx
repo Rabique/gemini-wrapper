@@ -19,6 +19,7 @@ interface SidebarProps {
 export const Sidebar = ({ onSelectConversation, activeConversationId, onNewChat }: SidebarProps) => {
     const [conversations, setConversations] = useState<Conversation[]>([])
     const [isLoading, setIsLoading] = useState(true)
+    const [usage, setUsage] = useState<{ count: number, limit: number, plan: string } | null>(null)
     const supabase = createClient()
     const { signOut } = useAuth()
     const router = useRouter()
@@ -26,7 +27,20 @@ export const Sidebar = ({ onSelectConversation, activeConversationId, onNewChat 
 
     useEffect(() => {
         fetchConversations()
+        fetchUsage()
     }, [])
+
+    const fetchUsage = async () => {
+        try {
+            const response = await fetch('/api/user/usage')
+            const data = await response.json()
+            if (response.ok) {
+                setUsage(data)
+            }
+        } catch (error) {
+            console.error('Failed to fetch usage:', error)
+        }
+    }
 
     const fetchConversations = async () => {
         setIsLoading(true)
@@ -126,7 +140,40 @@ export const Sidebar = ({ onSelectConversation, activeConversationId, onNewChat 
             </div>
 
             {/* Bottom section */}
-            <div className="p-4 border-t border-zinc-900 space-y-2">
+            <div className="p-4 border-t border-zinc-900 space-y-4">
+                {/* Usage Progress Bar */}
+                {usage && (
+                    <div className="px-2 space-y-2">
+                        <div className="flex justify-between items-end mb-1">
+                            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                                Monthly Usage
+                            </p>
+                            <p className="text-[10px] font-bold text-zinc-400">
+                                {usage.plan === 'unlimited' ? '∞' : `${usage.count}/${usage.limit}`}
+                            </p>
+                        </div>
+                        <div className="h-1.5 w-full bg-zinc-900 rounded-full overflow-hidden border border-zinc-800/50">
+                            <div 
+                                className={`h-full transition-all duration-500 rounded-full ${
+                                    usage.plan === 'unlimited' ? 'bg-amber-500' : 
+                                    (usage.count / usage.limit) >= 0.8 ? 'bg-red-500' : 'bg-zinc-100'
+                                }`}
+                                style={{ width: `${usage.plan === 'unlimited' ? 100 : Math.min((usage.count / usage.limit) * 100, 100)}%` }}
+                            />
+                        </div>
+                        
+                        {(usage.plan !== 'unlimited' && (usage.count / usage.limit) >= 0.8) && (
+                            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2 animate-pulse">
+                                <p className="text-[10px] text-red-400 font-bold text-center leading-tight">
+                                    {(usage.count / usage.limit) >= 1 
+                                        ? "Limit reached! Upgrade to continue."
+                                        : "Approaching monthly limit!"}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 <button
                     onClick={() => router.push('/dashboard/billing')}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all border ${pathname === '/dashboard/billing'
