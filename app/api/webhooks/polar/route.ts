@@ -1,7 +1,7 @@
 import { Polar } from '@polar-sh/sdk'
 import { validateEvent } from '@polar-sh/sdk/webhooks'
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/server'
 
 export async function POST(req: Request) {
     const body = await req.text()
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
 
         const headers = Object.fromEntries(req.headers.entries())
         const event = await validateEvent(body, headers, webhookSecret)
-        const supabase = await createClient()
+        const supabase = createAdminClient()
 
         console.log('Polar Webhook Event received:', event.type)
 
@@ -40,19 +40,30 @@ export async function POST(req: Request) {
                 const subscriptionId = checkout.subscriptionId
                 const productId = checkout.productId
                 
-                if (!userId) break
+                console.log('Processing checkout:', { type, userId, subscriptionId, productId })
+                
+                if (!userId) {
+                    console.error('No userId in checkout metadata')
+                    break
+                }
 
                 let plan = 'free'
                 if (productId === process.env.POLAR_PRODUCT_ID_PRO) plan = 'pro'
                 if (productId === process.env.POLAR_PRODUCT_ID_UNLIMITED) plan = 'unlimited'
 
-                await supabase.from('subscriptions').upsert({
+                const { error } = await supabase.from('subscriptions').upsert({
                     user_id: userId,
                     polar_subscription_id: subscriptionId,
                     plan: plan,
                     status: 'active',
                     current_period_end: null 
                 })
+                
+                if (error) {
+                    console.error('Error upserting subscription:', error)
+                } else {
+                    console.log('Subscription updated successfully for user:', userId, 'to plan:', plan)
+                }
                 break
             }
 
@@ -60,26 +71,28 @@ export async function POST(req: Request) {
             case 'subscription.created':
             case 'subscription.updated': {
                 const sub = data
-                // For updated, ensure it's actually active or trialing
-                if (type === 'subscription.updated' && sub.status !== 'active' && sub.status !== 'trialing') {
-                    // Fall through or handle separately if needed (e.g. canceled)
-                }
-
                 const productId = sub.productId
                 let plan = 'free'
                 if (productId === process.env.POLAR_PRODUCT_ID_PRO) plan = 'pro'
                 if (productId === process.env.POLAR_PRODUCT_ID_UNLIMITED) plan = 'unlimited'
 
-                await supabase.from('subscriptions').update({
+                console.log('Updating subscription:', { subId: sub.id, productId, plan })
+
+                const { error } = await supabase.from('subscriptions').update({
                     plan: plan,
                     status: 'active',
                     current_period_end: sub.currentPeriodEnd,
                 }).eq('polar_subscription_id', sub.id)
+                
+                if (error) {
+                    console.error('Error updating subscription:', error)
+                }
                 break
             }
 
             case 'subscription.canceled': {
                 const sub = data
+                console.log('Canceling subscription:', sub.id)
                 await supabase.from('subscriptions').update({
                     status: 'canceled',
                     current_period_end: sub.currentPeriodEnd
@@ -89,6 +102,7 @@ export async function POST(req: Request) {
 
             case 'subscription.revoked': {
                 const sub = data
+                console.log('Revoking subscription:', sub.id)
                 await supabase.from('subscriptions').update({
                     plan: 'free',
                     status: 'revoked',
