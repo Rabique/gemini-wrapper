@@ -17,19 +17,30 @@ export async function POST(req: Request) {
             throw new Error('POLAR_WEBHOOK_SECRET is not configured')
         }
 
-        const headers = Object.fromEntries(req.headers.entries())
         const event = await validateEvent(body, headers, webhookSecret)
         const supabase = await createClient()
 
         console.log('Polar Webhook Event received:', event.type)
 
-        switch (event.type) {
-            case 'checkout.completed': {
-                const checkout = event.data
+        // Cast to any to handle various event types across SDK versions
+        const type = event.type as any
+        const data = event.data as any
+
+        switch (type) {
+            case 'checkout.completed':
+            case 'checkout.updated': {
+                const checkout = data
+                // For checkout.updated, we only want to process it if it's confirmed
+                if (type === 'checkout.updated' && checkout.status !== 'confirmed') {
+                    break
+                }
+                
                 const userId = checkout.metadata?.userId as string
                 const subscriptionId = checkout.subscriptionId
                 const productId = checkout.productId
                 
+                if (!userId) break
+
                 let plan = 'free'
                 if (productId === process.env.POLAR_PRODUCT_ID_PRO) plan = 'pro'
                 if (productId === process.env.POLAR_PRODUCT_ID_UNLIMITED) plan = 'unlimited'
@@ -39,14 +50,20 @@ export async function POST(req: Request) {
                     polar_subscription_id: subscriptionId,
                     plan: plan,
                     status: 'active',
-                    current_period_end: null // Will be updated by subscription.active/updated
+                    current_period_end: null 
                 })
                 break
             }
 
             case 'subscription.active':
+            case 'subscription.created':
             case 'subscription.updated': {
-                const sub = event.data
+                const sub = data
+                // For updated, ensure it's actually active or trialing
+                if (type === 'subscription.updated' && sub.status !== 'active' && sub.status !== 'trialing') {
+                    // Fall through or handle separately if needed (e.g. canceled)
+                }
+
                 const productId = sub.productId
                 let plan = 'free'
                 if (productId === process.env.POLAR_PRODUCT_ID_PRO) plan = 'pro'
@@ -61,8 +78,7 @@ export async function POST(req: Request) {
             }
 
             case 'subscription.canceled': {
-                const sub = event.data
-                // canceled = 기간 끝까지 유지 후 만료 예정
+                const sub = data
                 await supabase.from('subscriptions').update({
                     status: 'canceled',
                     current_period_end: sub.currentPeriodEnd
@@ -71,8 +87,7 @@ export async function POST(req: Request) {
             }
 
             case 'subscription.revoked': {
-                const sub = event.data
-                // revoked = 즉시 해지 (Free 전환)
+                const sub = data
                 await supabase.from('subscriptions').update({
                     plan: 'free',
                     status: 'revoked',
