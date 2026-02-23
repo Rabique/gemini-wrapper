@@ -8,22 +8,24 @@ import Link from 'next/link'
 export const Navbar = () => {
     const { user } = useAuth()
     const [currentPlan, setCurrentPlan] = useState<string>('free')
+    const [usage, setUsage] = useState<{ count: number, limit: number, plan: string } | null>(null)
 
     useEffect(() => {
-        const fetchSubscription = async () => {
+        const fetchUsage = async () => {
             if (!user) return
             try {
-                const response = await fetch('/api/user/subscription')
+                const response = await fetch('/api/user/usage')
                 const data = await response.json()
-                if (response.ok && data.planId) {
-                    setCurrentPlan(data.planId)
+                if (response.ok) {
+                    setUsage(data)
+                    setCurrentPlan(data.plan)
                 }
             } catch (error) {
-                console.error('Failed to fetch subscription:', error)
+                console.error('Failed to fetch usage:', error)
             }
         }
 
-        fetchSubscription()
+        fetchUsage()
     }, [user])
 
     return (
@@ -40,19 +42,25 @@ export const Navbar = () => {
             </div>
 
             <div className="flex items-center gap-4">
-                {/* Upgrade Button - Always Visible */}
-                <Link
-                    href="/pricing"
-                    className="flex items-center gap-2 px-4 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition-all shadow-lg shadow-red-600/20 group"
-                >
-                    <ArrowUpCircle size={14} className="group-hover:rotate-12 transition-transform" />
-                    Upgrade
-                </Link>
+                {/* Upgrade Button - Visible if not unlimited */}
+                {currentPlan !== 'unlimited' && (
+                    <Link
+                        href="/pricing"
+                        className="flex items-center gap-2 px-4 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition-all shadow-lg shadow-red-600/20 group"
+                    >
+                        <ArrowUpCircle size={14} className="group-hover:rotate-12 transition-transform" />
+                        Upgrade
+                    </Link>
+                )}
 
                 {/* Credits display */}
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-full">
                     <Zap size={14} className="text-amber-400 fill-amber-400" />
-                    <span className="text-xs font-bold text-zinc-300">120 Credits</span>
+                    <span className="text-xs font-bold text-zinc-300">
+                        {usage ? (
+                            usage.plan === 'unlimited' ? 'Unlimited' : `${usage.count} / ${usage.limit} Calls`
+                        ) : 'Loading...'}
+                    </span>
                 </div>
 
                 <button className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors relative">
