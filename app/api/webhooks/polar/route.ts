@@ -18,7 +18,7 @@ export async function POST(req: Request) {
         }
 
         const headers = Object.fromEntries(req.headers.entries())
-        const event = validateEvent(body, headers, webhookSecret)
+        const event = await validateEvent(body, headers, webhookSecret)
         const supabase = await createClient()
 
         console.log('Polar Webhook Event received:', event.type)
