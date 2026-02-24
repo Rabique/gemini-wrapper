@@ -47,7 +47,7 @@ export async function POST(req: Request) {
         })
 
         // 4. 절대 경로 URL 생성
-        const origin = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin
+        const origin = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_VERCEL_URL ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` : new URL(req.url).origin
         console.log('Using origin for success URL:', origin)
 
         // 5. Checkout 생성
