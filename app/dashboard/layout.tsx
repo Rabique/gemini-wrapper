@@ -3,7 +3,7 @@
 import { Sidebar } from '@/components/dashboard/Sidebar'
 import { Navbar } from '@/components/dashboard/Navbar'
 import { useAuth } from '@/components/providers/AuthProvider'
-import { useState } from 'react'
+import { ConversationProvider } from '@/components/providers/ConversationProvider'
 
 export default function DashboardLayout({
     children,
@@ -11,7 +11,6 @@ export default function DashboardLayout({
     children: React.ReactNode
 }) {
     const { loading } = useAuth()
-    const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
 
     if (loading) {
         return (
@@ -22,19 +21,31 @@ export default function DashboardLayout({
     }
 
     return (
-        <div className="flex h-screen bg-zinc-950 text-zinc-200 overflow-hidden font-sans selection:bg-red-600/30">
-            <Sidebar
-                activeConversationId={activeConversationId || undefined}
-                onSelectConversation={(id) => setActiveConversationId(id)}
-                onNewChat={() => setActiveConversationId(null)}
-            />
+        <ConversationProvider>
+            <div className="flex h-screen bg-zinc-950 text-zinc-200 overflow-hidden font-sans selection:bg-red-600/30">
+                <SidebarContent />
 
-            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                <Navbar />
-                <main className="flex-1 flex flex-col overflow-hidden">
-                    {children}
-                </main>
+                <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+                    <Navbar />
+                    <main className="flex-1 flex flex-col overflow-hidden">
+                        {children}
+                    </main>
+                </div>
             </div>
-        </div>
+        </ConversationProvider>
+    )
+}
+
+import { useConversation } from '@/components/providers/ConversationProvider'
+
+function SidebarContent() {
+    const { activeConversationId, setActiveConversationId } = useConversation()
+    
+    return (
+        <Sidebar
+            activeConversationId={activeConversationId || undefined}
+            onSelectConversation={(id) => setActiveConversationId(id)}
+            onNewChat={() => setActiveConversationId(null)}
+        />
     )
 }

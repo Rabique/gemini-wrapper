@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/components/providers/AuthProvider'
+import { useConversation } from '@/components/providers/ConversationProvider'
 
 interface Conversation {
     id: string
@@ -22,13 +23,14 @@ export const Sidebar = ({ onSelectConversation, activeConversationId, onNewChat 
     const [usage, setUsage] = useState<{ count: number, limit: number, plan: string } | null>(null)
     const supabase = createClient()
     const { signOut } = useAuth()
+    const { refreshTrigger } = useConversation()
     const router = useRouter()
     const pathname = usePathname()
 
     useEffect(() => {
         fetchConversations()
         fetchUsage()
-    }, [])
+    }, [refreshTrigger])
 
     const fetchUsage = async () => {
         try {

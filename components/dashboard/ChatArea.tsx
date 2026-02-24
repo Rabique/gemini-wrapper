@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/client'
 import { Send, Sparkles, Paperclip, Mic, ArrowRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useConversation } from '@/components/providers/ConversationProvider'
+import { UpgradeModal } from './UpgradeModal'
 
 interface ChatAreaProps {
     conversationId: string | null
@@ -12,7 +14,10 @@ export const ChatArea = ({ conversationId, onConversationCreated }: ChatAreaProp
     const [input, setInput] = useState('')
     const [messages, setMessages] = useState<any[]>([])
     const [isLoading, setIsLoading] = useState(false)
+    const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false)
+    const [limit, setLimit] = useState(10)
     const supabase = createClient()
+    const { refreshConversations } = useConversation()
 
     useEffect(() => {
         if (conversationId) {
@@ -60,11 +65,13 @@ export const ChatArea = ({ conversationId, onConversationCreated }: ChatAreaProp
 
             if (response.status === 429) {
                 const data = await response.json()
+                setLimit(data.limit)
+                setIsUpgradeModalOpen(true)
                 setMessages(prev => {
                     const updated = [...prev]
                     updated[assistantMessageIdx] = {
                         role: 'assistant',
-                        content: `You've reached your monthly limit of ${data.limit} calls. Please upgrade your plan to continue using Polarutube.`,
+                        content: `You've reached your monthly limit of ${data.limit} conversations. Please upgrade your plan to continue.`,
                         isLimitError: true
                     }
                     return updated
@@ -79,6 +86,7 @@ export const ChatArea = ({ conversationId, onConversationCreated }: ChatAreaProp
             const newConvId = response.headers.get('x-conversation-id')
             if (newConvId && !conversationId) {
                 onConversationCreated(newConvId)
+                refreshConversations()
             }
 
             const reader = response.body?.getReader()
@@ -120,6 +128,11 @@ export const ChatArea = ({ conversationId, onConversationCreated }: ChatAreaProp
 
     return (
         <div className="flex-1 flex flex-col h-full relative">
+            <UpgradeModal 
+                isOpen={isUpgradeModalOpen} 
+                onClose={() => setIsUpgradeModalOpen(false)} 
+                limit={limit}
+            />
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-6 space-y-8 max-w-4xl mx-auto w-full">
                 {messages.map((msg, i) => (

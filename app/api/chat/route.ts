@@ -25,7 +25,12 @@ export async function POST(req: Request) {
         const limits: Record<string, number> = { free: 10, pro: 100, unlimited: Infinity }
         const currentMonth = new Date().toISOString().slice(0, 7)
 
-        if (plan !== 'unlimited') {
+        // 2. Resolve Conversation
+        let currentConvId = conversationId
+        let isNewConversation = !currentConvId
+
+        // --- Usage Tracking Start ---
+        if (isNewConversation && plan !== 'unlimited') {
             const { data: usage } = await supabase
                 .from('usage')
                 .select('count')
@@ -43,7 +48,7 @@ export async function POST(req: Request) {
                 }, { status: 429 })
             }
 
-            // Increment usage immediately
+            // Increment usage only for new conversations
             await supabase
                 .from('usage')
                 .upsert({ 
@@ -60,10 +65,6 @@ export async function POST(req: Request) {
 
         const genAI = new GoogleGenerativeAI(apiKey)
         const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' })
-
-        // 2. Resolve Conversation
-        let currentConvId = conversationId
-        let isNewConversation = !currentConvId
 
         if (isNewConversation) {
             // Create a new conversation with a default title from the first message

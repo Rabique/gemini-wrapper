@@ -1,10 +1,10 @@
 'use client'
 
 import { ChatArea } from '@/components/dashboard/ChatArea'
-import { useState } from 'react'
+import { useConversation } from '@/components/providers/ConversationProvider'
 
 export default function DashboardPage() {
-    const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
+    const { activeConversationId, setActiveConversationId } = useConversation()
 
     return (
         <ChatArea
