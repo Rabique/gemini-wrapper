@@ -43,7 +43,7 @@ export async function POST(req: Request) {
         };
 
         const productId = data.product_id || data.productId;
-        const subscriptionId = data.subscription_id || data.subscriptionId || data.id;
+        const subscriptionId = data.subscription_id || data.subscriptionId || (type.startsWith('subscription.') ? data.id : null);
 
         switch (type) {
             case 'checkout.completed':
@@ -51,49 +51,56 @@ export async function POST(req: Request) {
             case 'subscription.created':
             case 'subscription.active':
             case 'subscription.updated': {
-                // 결제 성공 또는 구독 활성화 시점
                 if (type === 'checkout.updated' && data.status !== 'confirmed') break;
 
                 const plan = getPlan(productId);
-                if (plan === 'free') {
-                    console.warn(`[Polar Webhook] Unknown Product ID: ${productId}. Defaulting to free or skipping.`);
+                
+                console.log(`[Polar Webhook] Syncing: type=${type}, user=${userId}, plan=${plan}, sub=${subscriptionId}`);
+
+                if (userId) {
+                    // 유저 ID가 있으면 확실하게 UPSERT
+                    const { error } = await supabase.from('subscriptions').upsert({
+                        user_id: userId,
+                        polar_subscription_id: subscriptionId,
+                        plan: plan,
+                        status: 'active',
+                        current_period_end: data.current_period_end || data.currentPeriodEnd,
+                        updated_at: new Date().toISOString()
+                    }, { onConflict: 'user_id' });
+                    if (error) console.error('[Polar Webhook] DB Upsert Error:', error);
+                } else if (subscriptionId) {
+                    // 유저 ID가 없으면 구독 ID로 기존 레코드 업데이트
+                    const { error } = await supabase.from('subscriptions').update({
+                        plan: plan,
+                        status: 'active',
+                        current_period_end: data.current_period_end || data.currentPeriodEnd,
+                        updated_at: new Date().toISOString()
+                    }).eq('polar_subscription_id', subscriptionId);
+                    if (error) console.error('[Polar Webhook] DB Update Error:', error);
                 }
-
-                console.log(`[Polar Webhook] Syncing Plan: user=${userId}, plan=${plan}, sub=${subscriptionId}`);
-
-                // UPSERT 실행
-                const { error } = await supabase.from('subscriptions').upsert({
-                    user_id: userId,
-                    polar_subscription_id: subscriptionId,
-                    plan: plan,
-                    status: 'active',
-                    current_period_end: data.current_period_end || data.currentPeriodEnd,
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'user_id' });
-
-                if (error) console.error('[Polar Webhook] DB Upsert Error:', error);
-                else console.log('[Polar Webhook] DB Sync Success');
                 break;
             }
 
             case 'subscription.canceled': {
-                console.log(`[Polar Webhook] Subscription Canceled: ${subscriptionId}`);
+                const subId = data.id || subscriptionId;
+                console.log(`[Polar Webhook] Subscription Canceled: ${subId}`);
                 await supabase.from('subscriptions').update({
                     status: 'canceled',
                     current_period_end: data.current_period_end || data.currentPeriodEnd,
                     updated_at: new Date().toISOString()
-                }).eq('polar_subscription_id', subscriptionId);
+                }).eq('polar_subscription_id', subId);
                 break;
             }
 
             case 'subscription.revoked': {
-                console.log(`[Polar Webhook] Subscription Revoked: ${subscriptionId}`);
+                const subId = data.id || subscriptionId;
+                console.log(`[Polar Webhook] Subscription Revoked: ${subId}`);
                 await supabase.from('subscriptions').update({
                     plan: 'free',
                     status: 'expired',
                     polar_subscription_id: null,
                     updated_at: new Date().toISOString()
-                }).eq('polar_subscription_id', subscriptionId);
+                }).eq('polar_subscription_id', subId);
                 break;
             }
         }
