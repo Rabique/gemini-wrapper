@@ -46,6 +46,11 @@ export async function POST(req: Request) {
         const subscriptionId = data.subscription_id || data.subscriptionId || (type.startsWith('subscription.') ? data.id : null);
 
         switch (type) {
+            case 'checkout.created':
+                // Checkout이 생성됨 (결제 전) - 필요 시 로깅만 수행
+                console.log(`[Polar Webhook] Checkout created: ${data.id}`);
+                break;
+
             case 'checkout.completed':
             case 'checkout.updated':
             case 'subscription.created':
