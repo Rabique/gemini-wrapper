@@ -113,24 +113,26 @@ export async function POST(req: Request) {
             }
 
             case 'subscription.canceled': {
-                const sub = data
-                console.log('Canceling subscription:', sub.id)
+                const sub = data;
+                console.log(`[Polar Webhook] Subscription canceled: ${sub.id}`);
                 await supabase.from('subscriptions').update({
                     status: 'canceled',
-                    current_period_end: sub.currentPeriodEnd
-                }).eq('polar_subscription_id', sub.id)
-                break
+                    current_period_end: sub.currentPeriodEnd || sub.current_period_end,
+                    updated_at: new Date().toISOString()
+                }).eq('polar_subscription_id', sub.id);
+                break;
             }
 
             case 'subscription.revoked': {
-                const sub = data
-                console.log('Revoking subscription:', sub.id)
+                const sub = data;
+                console.log(`[Polar Webhook] Subscription revoked/expired: ${sub.id}`);
                 await supabase.from('subscriptions').update({
                     plan: 'free',
-                    status: 'revoked',
-                    polar_subscription_id: null
-                }).eq('polar_subscription_id', sub.id)
-                break
+                    status: 'expired',
+                    polar_subscription_id: null,
+                    updated_at: new Date().toISOString()
+                }).eq('polar_subscription_id', sub.id);
+                break;
             }
         }
 
