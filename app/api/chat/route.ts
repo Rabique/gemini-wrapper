@@ -1,12 +1,13 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 
 export async function POST(req: Request) {
     try {
         const { messages, conversationId } = await req.json()
         const apiKey = process.env.GOOGLE_API_KEY
         const supabase = await createClient()
+        const supabaseAdmin = createAdminClient()
 
         // 1. Get current user
         const { data: { user } } = await supabase.auth.getUser()
@@ -15,7 +16,7 @@ export async function POST(req: Request) {
         }
 
         // --- Usage Tracking Start ---
-        const { data: subscription } = await supabase
+        const { data: subscription } = await supabaseAdmin
             .from('subscriptions')
             .select('plan, status')
             .eq('user_id', user.id)
@@ -29,14 +30,14 @@ export async function POST(req: Request) {
         let currentConvId = conversationId
         let isNewConversation = !currentConvId
 
-        // --- Usage Tracking Start ---
         if (isNewConversation && plan !== 'unlimited') {
-            const { data: usage } = await supabase
+            // Get current usage safely
+            const { data: usage } = await supabaseAdmin
                 .from('usage')
                 .select('count')
                 .eq('user_id', user.id)
                 .eq('month', currentMonth)
-                .single()
+                .maybeSingle() // Use maybeSingle to avoid error if no rows found
             
             const usageCount = usage?.count || 0
 
@@ -49,13 +50,19 @@ export async function POST(req: Request) {
             }
 
             // Increment usage only for new conversations
-            await supabase
+            const { error: upsertError } = await supabaseAdmin
                 .from('usage')
                 .upsert({ 
                     user_id: user.id, 
                     month: currentMonth, 
                     count: usageCount + 1 
                 }, { onConflict: 'user_id,month' })
+            
+            if (upsertError) {
+                console.error('Usage Increment Error:', upsertError)
+            } else {
+                console.log(`Usage incremented for user ${user.id}: ${usageCount + 1}`)
+            }
         }
         // --- Usage Tracking End ---
 
