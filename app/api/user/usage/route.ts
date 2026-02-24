@@ -19,7 +19,7 @@ export async function GET() {
             .from('subscriptions')
             .select('plan')
             .eq('user_id', user.id)
-            .single()
+            .maybeSingle()
 
         const plan = subscription?.plan || 'free'
         const limits: Record<string, number> = { free: 10, pro: 100, unlimited: Infinity }
@@ -30,7 +30,7 @@ export async function GET() {
             .select('count')
             .eq('user_id', user.id)
             .eq('month', currentMonth)
-            .single()
+            .maybeSingle()
 
         return NextResponse.json({
             plan,

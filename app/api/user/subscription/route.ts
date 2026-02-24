@@ -17,7 +17,7 @@ export async function GET() {
             .from('subscriptions')
             .select('*')
             .eq('user_id', user.id)
-            .single()
+            .maybeSingle()
 
         if (!sub) {
             return NextResponse.json({ planId: 'free' })

@@ -100,8 +100,8 @@ export const Navbar = () => {
                         onClick={() => setIsProfileOpen(!isProfileOpen)}
                         className="flex items-center gap-3 pl-2 group"
                     >
-                        <div className="flex flex-col items-end hidden sm:flex">
-                            <span className="text-sm font-semibold text-white group-hover:text-zinc-200 transition-colors">
+                        <div className="flex flex-col items-end">
+                            <span className="text-sm font-semibold text-white group-hover:text-zinc-200 transition-colors hidden sm:inline">
                                 {user?.email?.split('@')[0]}
                             </span>
                             <span className={`text-[9px] px-1.5 py-0.5 rounded-md border font-bold uppercase tracking-wider ${getPlanBadgeStyles(currentPlan)}`}>
