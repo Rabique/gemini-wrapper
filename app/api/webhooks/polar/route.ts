@@ -31,8 +31,17 @@ export async function POST(req: Request) {
             case 'checkout.completed':
             case 'checkout.updated': {
                 const checkout = data
-                // For checkout.updated, we only want to process it if it's confirmed
-                if (type === 'checkout.updated' && checkout.status !== 'confirmed') {
+                console.log(`Processing checkout event: ${type}`, {
+                    id: checkout.id,
+                    status: checkout.status,
+                    userId: checkout.metadata?.userId,
+                    productId: checkout.productId,
+                    subscriptionId: checkout.subscriptionId
+                })
+
+                // For checkout.updated, we only want to process it if it's confirmed or succeeded
+                if (type === 'checkout.updated' && checkout.status !== 'confirmed' && checkout.status !== 'succeeded') {
+                    console.log('Skipping checkout.updated because status is:', checkout.status)
                     break
                 }
                 
@@ -40,16 +49,19 @@ export async function POST(req: Request) {
                 const subscriptionId = checkout.subscriptionId
                 const productId = checkout.productId
                 
-                console.log('Processing checkout:', { type, userId, subscriptionId, productId })
-                
                 if (!userId) {
-                    console.error('No userId in checkout metadata')
+                    console.error('No userId found in checkout metadata. Make sure to pass metadata during checkout creation.')
                     break
                 }
 
                 let plan = 'free'
                 if (productId === process.env.POLAR_PRODUCT_ID_PRO) plan = 'pro'
-                if (productId === process.env.POLAR_PRODUCT_ID_UNLIMITED) plan = 'unlimited'
+                else if (productId === process.env.POLAR_PRODUCT_ID_UNLIMITED) plan = 'unlimited'
+                else {
+                    console.warn('Unknown Product ID received in webhook:', productId, '. Expected PRO or UNLIMITED IDs from env.')
+                }
+
+                console.log(`Upserting subscription for user ${userId}. Plan: ${plan}, SubID: ${subscriptionId}`)
 
                 const { error } = await supabase.from('subscriptions').upsert({
                     user_id: userId,
@@ -57,12 +69,12 @@ export async function POST(req: Request) {
                     plan: plan,
                     status: 'active',
                     current_period_end: null 
-                })
+                }, { onConflict: 'user_id' })
                 
                 if (error) {
-                    console.error('Error upserting subscription:', error)
+                    console.error('Database Error upserting subscription:', error)
                 } else {
-                    console.log('Subscription updated successfully for user:', userId, 'to plan:', plan)
+                    console.log('Subscription table updated successfully.')
                 }
                 break
             }
@@ -72,20 +84,33 @@ export async function POST(req: Request) {
             case 'subscription.updated': {
                 const sub = data
                 const productId = sub.productId
+                const userId = sub.metadata?.userId
+                
                 let plan = 'free'
                 if (productId === process.env.POLAR_PRODUCT_ID_PRO) plan = 'pro'
                 if (productId === process.env.POLAR_PRODUCT_ID_UNLIMITED) plan = 'unlimited'
 
-                console.log('Updating subscription:', { subId: sub.id, productId, plan })
+                console.log('Updating subscription event:', type, { subId: sub.id, userId, productId, plan })
 
-                const { error } = await supabase.from('subscriptions').update({
+                let query = supabase.from('subscriptions').update({
                     plan: plan,
                     status: 'active',
                     current_period_end: sub.currentPeriodEnd,
-                }).eq('polar_subscription_id', sub.id)
+                    polar_subscription_id: sub.id
+                })
+
+                if (userId) {
+                    query = query.eq('user_id', userId)
+                } else {
+                    query = query.eq('polar_subscription_id', sub.id)
+                }
+
+                const { error } = await query
                 
                 if (error) {
                     console.error('Error updating subscription:', error)
+                } else {
+                    console.log('Subscription update successful for:', userId || sub.id)
                 }
                 break
             }
