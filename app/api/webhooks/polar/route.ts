@@ -18,7 +18,7 @@ export async function POST(req: Request) {
         const event = await validateEvent(body, headers, webhookSecret)
         const supabase = createAdminClient()
 
-        const type = event.type
+        const type = event.type as any
         const data = event.data as any
 
         console.log(`[Polar Webhook] Received: ${type}`, { id: data.id });
