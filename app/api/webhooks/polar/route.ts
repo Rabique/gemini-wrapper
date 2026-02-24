@@ -22,95 +22,90 @@ export async function POST(req: Request) {
         const supabase = createAdminClient()
 
         console.log('Polar Webhook Event received:', event.type)
+        console.log('Configured Product IDs:', {
+            pro: process.env.POLAR_PRODUCT_ID_PRO,
+            unlimited: process.env.POLAR_PRODUCT_ID_UNLIMITED
+        })
 
         // Cast to any to handle various event types across SDK versions
         const type = event.type as any
         const data = event.data as any
 
+        // Helper to determine plan from productId
+        const getPlanFromProductId = (pid: string) => {
+            if (pid === process.env.POLAR_PRODUCT_ID_PRO) return 'pro'
+            if (pid === process.env.POLAR_PRODUCT_ID_UNLIMITED) return 'unlimited'
+            return 'free'
+        }
+
         switch (type) {
             case 'checkout.completed':
             case 'checkout.updated': {
                 const checkout = data
-                console.log(`Processing checkout event: ${type}`, {
-                    id: checkout.id,
-                    status: checkout.status,
-                    userId: checkout.metadata?.userId,
-                    productId: checkout.productId,
-                    subscriptionId: checkout.subscriptionId
-                })
-
-                // For checkout.updated, we only want to process it if it's confirmed or succeeded
                 if (type === 'checkout.updated' && checkout.status !== 'confirmed' && checkout.status !== 'succeeded') {
-                    console.log('Skipping checkout.updated because status is:', checkout.status)
                     break
                 }
                 
-                const userId = checkout.metadata?.userId as string
+                const userId = checkout.metadata?.userId || checkout.custom_field_data?.userId
                 const subscriptionId = checkout.subscriptionId
                 const productId = checkout.productId
                 
                 if (!userId) {
-                    console.error('No userId found in checkout metadata. Make sure to pass metadata during checkout creation.')
+                    console.error('No userId found in checkout metadata/custom_fields:', checkout.id)
                     break
                 }
 
-                let plan = 'free'
-                if (productId === process.env.POLAR_PRODUCT_ID_PRO) plan = 'pro'
-                else if (productId === process.env.POLAR_PRODUCT_ID_UNLIMITED) plan = 'unlimited'
-                else {
-                    console.warn('Unknown Product ID received in webhook:', productId, '. Expected PRO or UNLIMITED IDs from env.')
-                }
-
-                console.log(`Upserting subscription for user ${userId}. Plan: ${plan}, SubID: ${subscriptionId}`)
+                const plan = getPlanFromProductId(productId)
+                console.log(`Updating via checkout: user=${userId}, plan=${plan}, subId=${subscriptionId}`)
 
                 const { error } = await supabase.from('subscriptions').upsert({
                     user_id: userId,
                     polar_subscription_id: subscriptionId,
                     plan: plan,
                     status: 'active',
-                    current_period_end: null 
+                    updated_at: new Date().toISOString()
                 }, { onConflict: 'user_id' })
                 
-                if (error) {
-                    console.error('Database Error upserting subscription:', error)
-                } else {
-                    console.log('Subscription table updated successfully.')
-                }
+                if (error) console.error('Database Error (checkout):', error)
                 break
             }
 
-            case 'subscription.active':
             case 'subscription.created':
+            case 'subscription.active':
             case 'subscription.updated': {
                 const sub = data
+                const userId = sub.metadata?.userId || sub.custom_field_data?.userId
                 const productId = sub.productId
-                const userId = sub.metadata?.userId
-                
-                let plan = 'free'
-                if (productId === process.env.POLAR_PRODUCT_ID_PRO) plan = 'pro'
-                if (productId === process.env.POLAR_PRODUCT_ID_UNLIMITED) plan = 'unlimited'
+                const plan = getPlanFromProductId(productId)
 
-                console.log('Updating subscription event:', type, { subId: sub.id, userId, productId, plan })
-
-                let query = supabase.from('subscriptions').update({
-                    plan: plan,
-                    status: 'active',
-                    current_period_end: sub.currentPeriodEnd,
-                    polar_subscription_id: sub.id
+                console.log(`Processing subscription event: ${type}`, {
+                    subId: sub.id,
+                    userId,
+                    plan
                 })
 
-                if (userId) {
-                    query = query.eq('user_id', userId)
+                if (!userId) {
+                    // If no userId in metadata, try to find by polar_subscription_id
+                    const { error } = await supabase.from('subscriptions').update({
+                        plan: plan,
+                        status: 'active',
+                        current_period_end: sub.currentPeriodEnd,
+                        updated_at: new Date().toISOString()
+                    }).eq('polar_subscription_id', sub.id)
+                    
+                    if (error) console.error('Database Error (sub update by ID):', error)
                 } else {
-                    query = query.eq('polar_subscription_id', sub.id)
-                }
-
-                const { error } = await query
-                
-                if (error) {
-                    console.error('Error updating subscription:', error)
-                } else {
-                    console.log('Subscription update successful for:', userId || sub.id)
+                    // Primary method: update by userId
+                    const { error } = await supabase.from('subscriptions').upsert({
+                        user_id: userId,
+                        polar_subscription_id: sub.id,
+                        plan: plan,
+                        status: 'active',
+                        current_period_end: sub.currentPeriodEnd,
+                        updated_at: new Date().toISOString()
+                    }, { onConflict: 'user_id' })
+                    
+                    if (error) console.error('Database Error (sub upsert by user):', error)
                 }
                 break
             }
