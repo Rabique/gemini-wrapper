@@ -15,11 +15,11 @@ export async function POST(req: Request) {
         if (!webhookSecret) throw new Error('POLAR_WEBHOOK_SECRET is not configured')
 
         const headers = Object.fromEntries(req.headers.entries())
-        const event = await validateEvent(body, headers, webhookSecret)
+        const event = (await validateEvent(body, headers, webhookSecret)) as any
         const supabase = createAdminClient()
 
-        const type = event.type as any
-        const data = event.data as any
+        const type = event.type
+        const data = event.data
 
         console.log(`[Polar Webhook] Received: ${type}`, { id: data.id });
 
