@@ -45,20 +45,18 @@ export const ChatArea = ({ conversationId, onConversationCreated }: ChatAreaProp
         if (!input.trim() || isLoading) return
 
         const userMessage = { role: 'user', content: input }
-        const currentMessages = [...messages, userMessage]
-        setMessages(currentMessages)
         setInput('')
         setIsLoading(true)
 
-        const assistantMessageIdx = currentMessages.length
-        setMessages(prev => [...prev, { role: 'assistant', content: '' }])
+        // Add both messages at once to keep index stable
+        setMessages(prev => [...prev, userMessage, { role: 'assistant', content: '' }])
 
         try {
             const response = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    messages: currentMessages,
+                    messages: [...messages, userMessage],
                     conversationId: conversationId
                 }),
             })
@@ -69,10 +67,12 @@ export const ChatArea = ({ conversationId, onConversationCreated }: ChatAreaProp
                 setIsUpgradeModalOpen(true)
                 setMessages(prev => {
                     const updated = [...prev]
-                    updated[assistantMessageIdx] = {
-                        role: 'assistant',
-                        content: `You've reached your monthly limit of ${data.limit} conversations. Please upgrade your plan to continue.`,
-                        isLimitError: true
+                    if (updated.length > 0) {
+                        updated[updated.length - 1] = {
+                            role: 'assistant',
+                            content: `You've reached your monthly limit of ${data.limit} conversations. Please upgrade your plan to continue.`,
+                            isLimitError: true
+                        }
                     }
                     return updated
                 })
@@ -82,7 +82,6 @@ export const ChatArea = ({ conversationId, onConversationCreated }: ChatAreaProp
 
             if (!response.ok) throw new Error('Failed to fetch response')
 
-            // If we didn't have a conversationId, the backend created one
             const newConvId = response.headers.get('x-conversation-id')
             if (newConvId && !conversationId) {
                 onConversationCreated(newConvId)
@@ -103,9 +102,11 @@ export const ChatArea = ({ conversationId, onConversationCreated }: ChatAreaProp
 
                     setMessages(prev => {
                         const updated = [...prev]
-                        updated[assistantMessageIdx] = {
-                            role: 'assistant',
-                            content: assistantContent
+                        if (updated.length > 0) {
+                            updated[updated.length - 1] = {
+                                role: 'assistant',
+                                content: assistantContent
+                            }
                         }
                         return updated
                     })
@@ -115,9 +116,11 @@ export const ChatArea = ({ conversationId, onConversationCreated }: ChatAreaProp
             console.error('Chat error:', error)
             setMessages(prev => {
                 const updated = [...prev]
-                updated[assistantMessageIdx] = {
-                    role: 'assistant',
-                    content: 'Sorry, I encountered an error processing your request.'
+                if (updated.length > 0) {
+                    updated[updated.length - 1] = {
+                        role: 'assistant',
+                        content: 'Sorry, I encountered an error processing your request.'
+                    }
                 }
                 return updated
             })
@@ -135,27 +138,30 @@ export const ChatArea = ({ conversationId, onConversationCreated }: ChatAreaProp
             />
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-6 space-y-8 max-w-4xl mx-auto w-full">
-                {messages.map((msg, i) => (
-                    <div key={i} className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                        <div className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center font-bold ${msg.role === 'assistant' ? 'bg-red-600 text-white' : 'bg-zinc-800 text-zinc-400'
-                            }`}>
-                            {msg.role === 'assistant' ? 'A' : 'U'}
+                {messages.map((msg, i) => {
+                    if (!msg || !msg.role) return null;
+                    return (
+                        <div key={i} className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                            <div className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center font-bold ${msg.role === 'assistant' ? 'bg-red-600 text-white' : 'bg-zinc-800 text-zinc-400'
+                                }`}>
+                                {msg.role === 'assistant' ? 'A' : 'U'}
+                            </div>
+                            <div className={`max-w-[80%] rounded-2xl p-4 flex flex-col gap-4 ${msg.role === 'assistant' ? 'bg-zinc-900/50 border border-zinc-800 text-zinc-200' : 'bg-white text-black font-medium'
+                                }`}>
+                                <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                                
+                                {msg.isLimitError && (
+                                    <Link 
+                                        href="/pricing"
+                                        className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold py-2 px-4 rounded-xl transition-all w-fit shadow-lg shadow-red-600/20"
+                                    >
+                                        Upgrade Plan Now <ArrowRight size={14} />
+                                    </Link>
+                                )}
+                            </div>
                         </div>
-                        <div className={`max-w-[80%] rounded-2xl p-4 flex flex-col gap-4 ${msg.role === 'assistant' ? 'bg-zinc-900/50 border border-zinc-800 text-zinc-200' : 'bg-white text-black font-medium'
-                            }`}>
-                            <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                            
-                            {msg.isLimitError && (
-                                <Link 
-                                    href="/pricing"
-                                    className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold py-2 px-4 rounded-xl transition-all w-fit shadow-lg shadow-red-600/20"
-                                >
-                                    Upgrade Plan Now <ArrowRight size={14} />
-                                </Link>
-                            )}
-                        </div>
-                    </div>
-                ))}
+                    );
+                })}
                 {isLoading && messages[messages.length - 1]?.content === '' && (
                     <div className="flex gap-4">
                         <div className="w-8 h-8 rounded-lg bg-red-600 text-white flex items-center justify-center font-bold animate-pulse">A</div>
