@@ -4,9 +4,11 @@ import { useAuth } from '@/components/providers/AuthProvider'
 import { User as UserIcon, Bell, Search, Zap, ArrowUpCircle } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useConversation } from '@/components/providers/ConversationProvider'
 
 export const Navbar = () => {
     const { user } = useAuth()
+    const { refreshTrigger } = useConversation()
     const [currentPlan, setCurrentPlan] = useState<string>('free')
     const [usage, setUsage] = useState<{ count: number, limit: number, plan: string } | null>(null)
 
@@ -26,7 +28,7 @@ export const Navbar = () => {
         }
 
         fetchUsage()
-    }, [user])
+    }, [user, refreshTrigger])
 
     return (
         <header className="h-16 border-b border-zinc-800 bg-zinc-950/50 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-20">
