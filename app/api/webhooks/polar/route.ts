@@ -30,29 +30,24 @@ export async function POST(req: Request) {
         const type = event.type as any
         const data = event.data as any
 
-        console.log(`[Polar Webhook] Raw Data for ${type}:`, JSON.stringify({
-            id: data.id,
-            productId: data.productId || data.product_id,
-            metadata: data.metadata,
-            custom_field_data: data.custom_field_data
-        }));
+        console.log(`[Polar Webhook] ${type} received. ID: ${data.id}`);
 
         // Helper to determine plan from productId
         const getPlanFromProductId = (pid: string) => {
             const proId = process.env.POLAR_PRODUCT_ID_PRO;
             const unlimitedId = process.env.POLAR_PRODUCT_ID_UNLIMITED;
             
-            console.log(`[Polar Webhook] Comparing received ID "${pid}" with env IDs: PRO="${proId}", UNLIMITED="${unlimitedId}"`);
-            
             if (pid === proId) return 'pro';
             if (pid === unlimitedId) return 'unlimited';
-            return null; // Return null if no match found
+            return null;
         };
 
+        // Comprehensive userId search
         const userId = data.metadata?.userId || 
                        data.custom_field_data?.userId || 
                        data.metadata?.user_id ||
-                       (data.checkout?.metadata?.userId);
+                       data.checkout?.metadata?.userId ||
+                       data.subscription?.metadata?.userId;
 
         switch (type) {
             case 'checkout.completed':
@@ -66,27 +61,22 @@ export async function POST(req: Request) {
                 const productId = checkout.productId || checkout.product_id;
                 
                 if (!userId) {
-                    console.error('[Polar Webhook] No userId found in checkout event:', checkout.id);
+                    console.error('[Polar Webhook] No userId found in checkout metadata');
                     break;
                 }
 
                 const plan = getPlanFromProductId(productId);
-                if (!plan) {
-                    console.error(`[Polar Webhook] Could not determine plan for Product ID: ${productId}`);
-                    break;
-                }
+                if (!plan) break;
 
-                console.log(`[Polar Webhook] Updating via checkout: user=${userId}, plan=${plan}, subId=${subscriptionId}`);
+                console.log(`[Polar Webhook] Syncing checkout for user: ${userId}, plan: ${plan}`);
 
-                const { error } = await supabase.from('subscriptions').upsert({
+                await supabase.from('subscriptions').upsert({
                     user_id: userId,
                     polar_subscription_id: subscriptionId,
                     plan: plan,
                     status: 'active',
                     updated_at: new Date().toISOString()
                 }, { onConflict: 'user_id' });
-                
-                if (error) console.error('[Polar Webhook] Database Error (checkout):', error);
                 break;
             }
 
@@ -96,33 +86,28 @@ export async function POST(req: Request) {
                 const sub = data;
                 const productId = sub.productId || sub.product_id;
                 const plan = getPlanFromProductId(productId);
-                const subId = sub.id;
+                
+                if (!plan) break;
 
-                if (!plan) {
-                    console.error(`[Polar Webhook] Could not determine plan for Subscription Product ID: ${productId}`);
-                    break;
-                }
-
+                // Try update by userId first, then by subscriptionId
                 if (userId) {
-                    console.log(`[Polar Webhook] Upserting subscription by userId: ${userId}, plan: ${plan}`);
-                    const { error } = await supabase.from('subscriptions').upsert({
+                    console.log(`[Polar Webhook] Syncing subscription for user: ${userId}, plan: ${plan}`);
+                    await supabase.from('subscriptions').upsert({
                         user_id: userId,
-                        polar_subscription_id: subId,
+                        polar_subscription_id: sub.id,
                         plan: plan,
                         status: 'active',
                         current_period_end: sub.currentPeriodEnd || sub.current_period_end,
                         updated_at: new Date().toISOString()
                     }, { onConflict: 'user_id' });
-                    if (error) console.error('[Polar Webhook] Database Error (sub upsert):', error);
                 } else {
-                    console.log(`[Polar Webhook] Updating subscription by polar_subscription_id: ${subId}, plan: ${plan}`);
-                    const { error } = await supabase.from('subscriptions').update({
+                    console.log(`[Polar Webhook] Syncing by subId: ${sub.id}, plan: ${plan}`);
+                    await supabase.from('subscriptions').update({
                         plan: plan,
                         status: 'active',
                         current_period_end: sub.currentPeriodEnd || sub.current_period_end,
                         updated_at: new Date().toISOString()
-                    }).eq('polar_subscription_id', subId);
-                    if (error) console.error('[Polar Webhook] Database Error (sub update):', error);
+                    }).eq('polar_subscription_id', sub.id);
                 }
                 break;
             }
