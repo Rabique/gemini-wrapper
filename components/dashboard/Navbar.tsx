@@ -16,7 +16,7 @@ export const Navbar = () => {
         const fetchUsage = async () => {
             if (!user) return
             try {
-                const response = await fetch('/api/user/usage')
+                const response = await fetch('/api/user/usage', { cache: 'no-store' })
                 const data = await response.json()
                 if (response.ok) {
                     setUsage(data)
