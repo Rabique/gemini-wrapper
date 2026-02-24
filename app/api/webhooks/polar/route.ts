@@ -14,6 +14,12 @@ export async function POST(req: Request) {
         const webhookSecret = process.env.POLAR_WEBHOOK_SECRET
         if (!webhookSecret) throw new Error('POLAR_WEBHOOK_SECRET is not configured')
 
+        // Supabase 관리자 키 확인
+        if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+            console.error('[Polar Webhook] SUPABASE_SERVICE_ROLE_KEY is missing in environment variables');
+            return NextResponse.json({ error: 'Server configuration error: missing supabase key' }, { status: 200 });
+        }
+
         const headers = Object.fromEntries(req.headers.entries())
         const event = (await validateEvent(body, headers, webhookSecret)) as any
         const supabase = createAdminClient()
@@ -21,29 +27,32 @@ export async function POST(req: Request) {
         const type = event.type
         const data = event.data
 
-        console.log(`[Polar Webhook] Type: ${type}, ID: ${data.id}`);
+        console.log(`[Polar Webhook] Received: ${type}`);
 
-        // 유저 ID 추출 (모든 경로 시도)
-        const userId = data.metadata?.userId || 
-                       data.custom_field_data?.userId || 
-                       data.metadata?.user_id ||
-                       (data.checkout?.metadata?.userId) ||
-                       (data.subscription?.metadata?.userId);
+        // 유저 ID 추출 함수
+        const getUserId = (obj: any): string | null => {
+            return obj.metadata?.userId || 
+                   obj.custom_field_data?.userId || 
+                   obj.metadata?.user_id ||
+                   obj.checkout?.metadata?.userId ||
+                   obj.subscription?.metadata?.userId ||
+                   (obj.active_subscriptions && obj.active_subscriptions[0]?.metadata?.userId);
+        }
 
-        // 플랜 판정
-        const productId = data.product_id || data.productId;
-        let plan = 'free';
-        if (productId === process.env.POLAR_PRODUCT_ID_PRO) plan = 'pro';
-        if (productId === process.env.POLAR_PRODUCT_ID_UNLIMITED) plan = 'unlimited';
+        const userId = getUserId(data);
 
-        const subscriptionId = data.subscription_id || data.subscriptionId || (type.startsWith('subscription.') ? data.id : null);
+        // 플랜 판정 함수
+        const getPlan = (pid: string) => {
+            if (pid === process.env.POLAR_PRODUCT_ID_PRO) return 'pro';
+            if (pid === process.env.POLAR_PRODUCT_ID_UNLIMITED) return 'unlimited';
+            return 'free';
+        };
 
-        console.log(`[Polar Webhook] Processing: user=${userId}, plan=${plan}, sub=${subscriptionId}`);
+        const productId = data.product_id || data.productId || (data.active_subscriptions && data.active_subscriptions[0]?.product_id);
+        const subscriptionId = data.subscription_id || data.subscriptionId || data.id || (data.active_subscriptions && data.active_subscriptions[0]?.id);
 
         switch (type) {
-            case 'checkout.created':
-                return NextResponse.json({ received: true });
-
+            case 'customer.state_changed':
             case 'checkout.completed':
             case 'checkout.updated':
             case 'subscription.created':
@@ -51,46 +60,46 @@ export async function POST(req: Request) {
             case 'subscription.updated': {
                 if (type === 'checkout.updated' && data.status !== 'confirmed') break;
 
-                if (userId) {
-                    const { error } = await supabase.from('subscriptions').upsert({
-                        user_id: userId,
-                        polar_subscription_id: subscriptionId,
+                const plan = getPlan(productId);
+                const subId = subscriptionId;
+                const finalUserId = userId || (data.active_subscriptions && getUserId(data.active_subscriptions[0]));
+
+                console.log(`[Polar Webhook] Syncing Plan: user=${finalUserId}, plan=${plan}, sub=${subId}`);
+
+                if (finalUserId) {
+                    await supabase.from('subscriptions').upsert({
+                        user_id: finalUserId,
+                        polar_subscription_id: subId,
                         plan: plan,
                         status: 'active',
-                        current_period_end: data.current_period_end || data.currentPeriodEnd,
+                        current_period_end: data.current_period_end || data.currentPeriodEnd || (data.active_subscriptions && data.active_subscriptions[0]?.current_period_end),
                         updated_at: new Date().toISOString()
                     }, { onConflict: 'user_id' });
-                    if (error) console.error('[Polar Webhook] DB Upsert Error:', error);
-                } else if (subscriptionId) {
-                    const { error } = await supabase.from('subscriptions').update({
+                } else if (subId) {
+                    await supabase.from('subscriptions').update({
                         plan: plan,
                         status: 'active',
-                        current_period_end: data.current_period_end || data.currentPeriodEnd,
                         updated_at: new Date().toISOString()
-                    }).eq('polar_subscription_id', subscriptionId);
-                    if (error) console.error('[Polar Webhook] DB Update Error:', error);
+                    }).eq('polar_subscription_id', subId);
                 }
                 break;
             }
 
             case 'subscription.canceled': {
-                const subId = data.id || subscriptionId;
                 await supabase.from('subscriptions').update({
                     status: 'canceled',
-                    current_period_end: data.current_period_end || data.currentPeriodEnd,
                     updated_at: new Date().toISOString()
-                }).eq('polar_subscription_id', subId);
+                }).eq('polar_subscription_id', subscriptionId);
                 break;
             }
 
             case 'subscription.revoked': {
-                const subId = data.id || subscriptionId;
                 await supabase.from('subscriptions').update({
                     plan: 'free',
                     status: 'expired',
                     polar_subscription_id: null,
                     updated_at: new Date().toISOString()
-                }).eq('polar_subscription_id', subId);
+                }).eq('polar_subscription_id', subscriptionId);
                 break;
             }
         }
@@ -98,7 +107,6 @@ export async function POST(req: Request) {
         return NextResponse.json({ received: true })
     } catch (err: any) {
         console.error('[Polar Webhook] Error:', err.message)
-        // Polar가 재전송을 계속하지 않도록 200 응답을 주되 에러 로깅
         return NextResponse.json({ error: err.message }, { status: 200 })
     }
 }
